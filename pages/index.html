@@ -4,39 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LibreOffice WASM assets — CDN</title>
-<meta name="description" content="Cross-origin CDN for the @matbee/libreoffice-converter browser runtime: LibreOffice WASM assets served with CORS for in-browser document conversion.">
+<meta name="description" content="Cross-origin CDN for the @matbee/libreoffice-converter browser runtime: LibreOffice WASM assets served with CORS for in-browser document conversion. Includes a live demo.">
+<!-- Enables cross-origin isolation (SharedArrayBuffer) on hosts that can't send
+     COOP/COEP headers, e.g. GitHub Pages. No-op when headers are already set. -->
+<script src="coi-serviceworker.js"></script>
 <style>
 	:root {
-		--bg: #ffffff;
-		--fg: #1b1f23;
-		--muted: #5b636b;
-		--border: #e6e8eb;
-		--card: #f6f8fa;
-		--accent: #18a303;      /* LibreOffice green */
-		--accent-ink: #0c6b00;
-		--code-bg: #0d1117;
-		--code-fg: #e6edf3;
-		--code-comment: #8b949e;
-		--code-accent: #7ee787;
+		--bg: #ffffff; --fg: #1b1f23; --muted: #5b636b; --border: #e6e8eb; --card: #f6f8fa;
+		--accent: #18a303; --accent-ink: #0c6b00;
+		--code-bg: #0d1117; --code-fg: #e6edf3; --code-comment: #8b949e; --code-accent: #7ee787;
 	}
 	@media (prefers-color-scheme: dark) {
 		:root {
-			--bg: #0d1117;
-			--fg: #e6edf3;
-			--muted: #9aa4ae;
-			--border: #262d36;
-			--card: #161b22;
-			--accent: #43c463;
-			--accent-ink: #7ee787;
-			--code-bg: #010409;
+			--bg: #0d1117; --fg: #e6edf3; --muted: #9aa4ae; --border: #262d36; --card: #161b22;
+			--accent: #43c463; --accent-ink: #7ee787; --code-bg: #010409;
 		}
 	}
 	* { box-sizing: border-box; }
 	html { -webkit-text-size-adjust: 100%; }
 	body {
-		margin: 0;
-		background: var(--bg);
-		color: var(--fg);
+		margin: 0; background: var(--bg); color: var(--fg);
 		font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 		-webkit-font-smoothing: antialiased;
 	}
@@ -45,46 +32,41 @@
 	a:hover { text-decoration: underline; }
 
 	header { border-bottom: 1px solid var(--border); padding-bottom: 28px; margin-bottom: 36px; }
-	.eyebrow {
-		display: inline-flex; align-items: center; gap: 8px;
-		font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-		color: var(--accent-ink);
-	}
+	.eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-ink); }
 	.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 	h1 { font-size: clamp(28px, 6vw, 40px); line-height: 1.1; margin: 14px 0 10px; letter-spacing: -.02em; }
 	.lede { font-size: clamp(16px, 2.4vw, 19px); color: var(--muted); margin: 0; max-width: 60ch; }
-	.badge {
-		display: inline-block; margin-top: 18px; padding: 4px 12px; border-radius: 999px;
-		background: var(--card); border: 1px solid var(--border);
-		font: 500 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted);
-	}
+	.badge { display: inline-block; margin-top: 18px; padding: 4px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--border); font: 500 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
 	.badge b { color: var(--fg); }
 
 	h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 40px 0 14px; }
 	p { margin: 0 0 16px; }
-	code:not(pre code) {
-		font: 500 .88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-		background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: .1em .4em;
-	}
+	code:not(pre code) { font: 500 .88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: .1em .4em; }
 
-	.code {
-		position: relative; margin: 0 0 8px;
-		background: var(--code-bg); border-radius: 12px; border: 1px solid var(--border);
-		overflow: hidden;
-	}
+	/* Demo */
+	.demo { border: 1px solid var(--border); border-radius: 14px; background: var(--card); padding: 22px; }
+	.drop { border: 1.5px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; transition: border-color .15s, background .15s; cursor: pointer; }
+	.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+	.drop strong { color: var(--fg); }
+	.drop small { color: var(--muted); display: block; margin-top: 6px; }
+	.demo-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+	.btn { appearance: none; border: 0; border-radius: 9px; padding: 10px 18px; font: 600 14px system-ui, sans-serif; color: #fff; background: var(--accent); cursor: pointer; }
+	.btn:disabled { opacity: .5; cursor: not-allowed; }
+	.btn.secondary { background: transparent; color: var(--accent-ink); border: 1px solid var(--border); }
+	.demo-file { font: 500 13px ui-monospace, monospace; color: var(--muted); }
+	.demo-status { margin-top: 14px; font-size: 14px; color: var(--muted); min-height: 1.2em; }
+	.demo-status.err { color: #d63638; }
+	.demo-status.ok { color: var(--accent-ink); }
+	.bar { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; margin-top: 12px; display: none; }
+	.bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+	.hint { font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+
+	.code { position: relative; margin: 0 0 8px; background: var(--code-bg); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
 	.code pre { margin: 0; padding: 20px 18px; overflow-x: auto; }
-	.code code {
-		font: 13.5px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-		color: var(--code-fg); white-space: pre;
-	}
+	.code code { font: 13.5px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--code-fg); white-space: pre; }
 	.code .c { color: var(--code-comment); }
 	.code .k { color: var(--code-accent); }
-	.copy {
-		position: absolute; top: 10px; right: 10px;
-		font: 600 12px system-ui, sans-serif; color: var(--code-fg);
-		background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
-		border-radius: 7px; padding: 5px 10px; cursor: pointer;
-	}
+	.copy { position: absolute; top: 10px; right: 10px; font: 600 12px system-ui, sans-serif; color: var(--code-fg); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
 	.copy:hover { background: rgba(255,255,255,.16); }
 
 	ul.files { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -110,8 +92,27 @@
 	</header>
 
 	<section>
+		<h2>Try it</h2>
+		<div class="demo">
+			<div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose or drop a document">
+				<strong id="drop-label">Drop a document here, or click to choose</strong>
+				<small>.odt, .docx, .xlsx, .pptx, .rtf … → PDF, in your browser</small>
+				<input type="file" id="file" accept=".odt,.ods,.odp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.rtf,.txt,.csv,.html" hidden>
+			</div>
+			<div class="demo-row">
+				<button class="btn" id="convert" disabled>Convert to PDF</button>
+				<a class="btn secondary" id="download" style="display:none" download>Download PDF</a>
+				<span class="demo-file" id="filename"></span>
+			</div>
+			<div class="bar" id="bar"><i></i></div>
+			<div class="demo-status" id="status"></div>
+			<p class="hint">First run downloads the LibreOffice WASM runtime (~235&nbsp;MB) and can take a minute; it is then cached by the browser. Everything runs locally — files never leave your device.</p>
+		</div>
+	</section>
+
+	<section>
 		<h2>What is this?</h2>
-		<p>The npm package ships the LibreOffice WASM binaries (<code>soffice.wasm</code> ≈ 140&nbsp;MB, <code>soffice.data</code> ≈ 95&nbsp;MB), which are too large for public npm CDNs and can't be committed into most projects. This page mirrors that browser runtime on GitHub Pages so it can be fetched cross-origin. Ideal to keep the heavy binaries out of your own repository and bundle.</p>
+		<p>The npm package ships the LibreOffice WASM binaries (<code>soffice.wasm</code> ≈ 140&nbsp;MB, <code>soffice.data</code> ≈ 95&nbsp;MB), which are too large for public npm CDNs and can't be committed into most projects. This page mirrors that browser runtime on GitHub Pages so it can be fetched cross-origin — and runs the demo above from the very same files.</p>
 	</section>
 
 	<section>
@@ -151,7 +152,7 @@
 
 	<section>
 		<h2>Requirements</h2>
-		<p class="note"><b>Cross-origin isolation.</b> The converter uses <code>SharedArrayBuffer</code>, so the page that runs it must be served with <code>Cross-Origin-Opener-Policy: same-origin</code> and <code>Cross-Origin-Embedder-Policy: require-corp</code> (or <code>credentialless</code>). These headers are set by <em>your</em> app, not by this CDN.</p>
+		<p class="note"><b>Cross-origin isolation.</b> The converter uses <code>SharedArrayBuffer</code>, so the page that runs it must be served with <code>Cross-Origin-Opener-Policy: same-origin</code> and <code>Cross-Origin-Embedder-Policy: require-corp</code> (or <code>credentialless</code>). GitHub Pages can't set these, so this page uses a <a href="https://github.com/gzuidhof/coi-serviceworker">service worker</a> to enable isolation client-side; in your own app, set the headers on the server.</p>
 	</section>
 
 	<footer>
@@ -162,26 +163,103 @@
 </div>
 
 <script>
-	// Fill in the base URL (directory of this page) in the snippet — robust
-	// whether the page is opened at "/" or explicitly at "/index.html".
+	// Base URL (directory of this page) — robust at "/" or "/index.html".
 	var base = new URL('.', location.href).href.replace(/\/$/, '');
 	var snip = document.getElementById('snippet');
 	snip.innerHTML = snip.innerHTML.replace('__ORIGIN__', base);
-
-	// Show the published version.
 	fetch('./version.json').then(function (r) { return r.json(); }).then(function (d) {
 		document.querySelector('#version b').textContent = d.version;
-	}).catch(function () {
-		document.getElementById('version').style.display = 'none';
-	});
-
-	// Copy button.
+	}).catch(function () { document.getElementById('version').style.display = 'none'; });
 	document.querySelector('[data-copy]').addEventListener('click', function (e) {
-		var text = document.getElementById('snippet').innerText;
-		navigator.clipboard.writeText(text).then(function () {
-			e.target.textContent = 'Copied';
-			setTimeout(function () { e.target.textContent = 'Copy'; }, 1500);
+		navigator.clipboard.writeText(document.getElementById('snippet').innerText).then(function () {
+			e.target.textContent = 'Copied'; setTimeout(function () { e.target.textContent = 'Copy'; }, 1500);
 		});
+	});
+</script>
+
+<script type="module">
+	import { WorkerBrowserConverter, createWasmPaths } from './dist/browser.js';
+
+	const drop = document.getElementById('drop');
+	const fileInput = document.getElementById('file');
+	const convertBtn = document.getElementById('convert');
+	const downloadLink = document.getElementById('download');
+	const filenameEl = document.getElementById('filename');
+	const statusEl = document.getElementById('status');
+	const dropLabel = document.getElementById('drop-label');
+	const bar = document.getElementById('bar');
+	const barFill = bar.querySelector('i');
+
+	const BASE = new URL('.', location.href).href; // absolute; workers resolve relative URLs against themselves.
+	let selectedFile = null;
+	let converter = null;
+
+	function setStatus(msg, kind) { statusEl.textContent = msg; statusEl.className = 'demo-status' + (kind ? ' ' + kind : ''); }
+	function setProgress(pct) { bar.style.display = pct == null ? 'none' : 'block'; if (pct != null) barFill.style.width = Math.max(3, pct) + '%'; }
+
+	function pick(file) {
+		if (!file) return;
+		selectedFile = file;
+		filenameEl.textContent = file.name;
+		dropLabel.textContent = file.name;
+		convertBtn.disabled = false;
+		downloadLink.style.display = 'none';
+		setStatus('');
+	}
+
+	drop.addEventListener('click', () => fileInput.click());
+	drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+	fileInput.addEventListener('change', () => pick(fileInput.files[0]));
+	drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+	drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+	drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); pick(e.dataTransfer.files[0]); });
+
+	async function getConverter() {
+		if (converter) return converter;
+		if (!self.crossOriginIsolated) {
+			throw new Error('Cross-origin isolation is not active, so SharedArrayBuffer is unavailable. Reload the page; if it persists, your browser blocks the service worker.');
+		}
+		converter = new WorkerBrowserConverter({
+			...createWasmPaths(BASE + 'wasm/'),
+			browserWorkerJs: BASE + 'dist/browser.worker.global.js',
+			onProgress: (info) => {
+				if (info) { setStatus(info.message || 'Working…'); if (typeof info.percent === 'number') setProgress(info.percent); }
+			},
+		});
+		await converter.initialize();
+		return converter;
+	}
+
+	convertBtn.addEventListener('click', async () => {
+		if (!selectedFile) return;
+		convertBtn.disabled = true;
+		downloadLink.style.display = 'none';
+		setProgress(0);
+		setStatus('Loading LibreOffice…');
+		const started = performance.now();
+		try {
+			const c = await getConverter();
+			setStatus('Converting ' + selectedFile.name + '…');
+			const bytes = new Uint8Array(await selectedFile.arrayBuffer());
+			const result = await c.convert(bytes, { outputFormat: 'pdf' }, selectedFile.name);
+			const blob = new Blob([result.data], { type: result.mimeType || 'application/pdf' });
+			const url = URL.createObjectURL(blob);
+			downloadLink.href = url;
+			downloadLink.download = selectedFile.name.replace(/\.[^.]+$/, '') + '.pdf';
+			downloadLink.style.display = 'inline-block';
+			const secs = ((performance.now() - started) / 1000).toFixed(1);
+			const kb = (result.data.length / 1024).toFixed(0);
+			setStatus('Done — ' + kb + ' KB PDF in ' + secs + ' s.', 'ok');
+			setProgress(null);
+			// Expose result for automated verification.
+			window.__demoResult = { ok: true, bytes: result.data.length, mime: result.mimeType, isPdf: result.data[0] === 0x25 && result.data[1] === 0x50 };
+		} catch (err) {
+			setStatus(err && err.message ? err.message : 'Conversion failed.', 'err');
+			setProgress(null);
+			window.__demoResult = { ok: false, error: String(err && err.message || err) };
+		} finally {
+			convertBtn.disabled = false;
+		}
 	});
 </script>
 </body>
