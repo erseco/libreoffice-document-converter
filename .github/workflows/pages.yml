@@ -71,24 +71,10 @@ jobs:
           cp -R wasm _site/wasm
           # Disable Jekyll so files are served verbatim (and nothing is dropped).
           touch _site/.nojekyll
-          # Version marker consumers can read to detect/pin the served build.
+          # Version marker (the landing page fetches this to show the version).
           printf '{ "version": "%s" }\n' "$VERSION" > _site/version.json
-          # Minimal landing page.
-          {
-            echo '<!doctype html>'
-            echo '<html lang="en"><head><meta charset="utf-8">'
-            echo '<title>libreoffice-document-converter — browser assets</title></head><body>'
-            echo "<h1>libreoffice-document-converter browser assets</h1>"
-            echo "<p>Version <code>${VERSION}</code>, served with <code>Access-Control-Allow-Origin: *</code> for cross-origin WASM loading.</p>"
-            echo '<ul>'
-            echo '<li><a href="./dist/browser.js">dist/browser.js</a></li>'
-            echo '<li><a href="./dist/browser.worker.global.js">dist/browser.worker.global.js</a></li>'
-            echo '<li><a href="./wasm/soffice.js">wasm/soffice.js</a></li>'
-            echo '<li><a href="./wasm/soffice.wasm">wasm/soffice.wasm</a></li>'
-            echo '<li><a href="./wasm/soffice.data">wasm/soffice.data</a></li>'
-            echo '<li><a href="./wasm/soffice.worker.js">wasm/soffice.worker.js</a></li>'
-            echo '</ul></body></html>'
-          } > _site/index.html
+          # Landing page (source: pages/index.html).
+          cp pages/index.html _site/index.html
           echo "Assembled site:"
           du -sh _site
           du -h _site/wasm/soffice.wasm _site/wasm/soffice.data
