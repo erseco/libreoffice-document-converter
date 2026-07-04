@@ -1,0 +1,115 @@
+name: Deploy WASM to GitHub Pages
+
+# Publishes the browser runtime assets (dist/ + wasm/) to GitHub Pages so they can
+# be loaded cross-origin. GitHub Pages serves every file with
+# `Access-Control-Allow-Origin: *`, which is what browsers require to fetch the
+# LibreOffice WASM binaries (soffice.wasm / soffice.data) from another origin.
+#
+# Deploying via the Pages *artifact* (instead of committing to a branch) sidesteps
+# the 100 MB per-file git limit, so the ~140 MB soffice.wasm can be published.
+#
+# The site serves the currently published release only. Consumers should pin their
+# local JS glue (dist/) to the same version they load the binaries for.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Least-privilege token: only what the Pages deployment needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one Pages deployment at a time; never cancel an in-progress deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with LFS binaries)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build browser bundle (dist/)
+        run: npm run build
+
+      - name: Verify WASM binaries were pulled from LFS
+        run: |
+          set -euo pipefail
+          for f in wasm/soffice.wasm wasm/soffice.data; do
+            size=$(wc -c < "$f")
+            echo "$f: $size bytes"
+            if [ "$size" -lt 1000000 ]; then
+              echo "::error::$f is only $size bytes — it looks like a Git LFS pointer. LFS content was not pulled."
+              exit 1
+            fi
+          done
+
+      - name: Assemble Pages site
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          rm -rf _site
+          mkdir -p _site
+          # Mirror the npm package browser layout so consumers can use the same paths.
+          cp -R dist _site/dist
+          cp -R wasm _site/wasm
+          # Disable Jekyll so files are served verbatim (and nothing is dropped).
+          touch _site/.nojekyll
+          # Version marker consumers can read to detect/pin the served build.
+          printf '{ "version": "%s" }\n' "$VERSION" > _site/version.json
+          # Minimal landing page.
+          {
+            echo '<!doctype html>'
+            echo '<html lang="en"><head><meta charset="utf-8">'
+            echo '<title>libreoffice-document-converter — browser assets</title></head><body>'
+            echo "<h1>libreoffice-document-converter browser assets</h1>"
+            echo "<p>Version <code>${VERSION}</code>, served with <code>Access-Control-Allow-Origin: *</code> for cross-origin WASM loading.</p>"
+            echo '<ul>'
+            echo '<li><a href="./dist/browser.js">dist/browser.js</a></li>'
+            echo '<li><a href="./dist/browser.worker.global.js">dist/browser.worker.global.js</a></li>'
+            echo '<li><a href="./wasm/soffice.js">wasm/soffice.js</a></li>'
+            echo '<li><a href="./wasm/soffice.wasm">wasm/soffice.wasm</a></li>'
+            echo '<li><a href="./wasm/soffice.data">wasm/soffice.data</a></li>'
+            echo '<li><a href="./wasm/soffice.worker.js">wasm/soffice.worker.js</a></li>'
+            echo '</ul></body></html>'
+          } > _site/index.html
+          echo "Assembled site:"
+          du -sh _site
+          du -h _site/wasm/soffice.wasm _site/wasm/soffice.data
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
