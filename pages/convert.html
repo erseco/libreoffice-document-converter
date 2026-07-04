@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headless converter</title>
+<meta name="robots" content="noindex">
+<!--
+  Headless LibreOffice WASM converter endpoint.
+
+  Designed to be opened by another window (e.g. a WordPress Playground tab where
+  the host can't provide COOP/COEP or open popups reliably) via:
+
+      window.open('convert.html?receive=opener')
+
+  Protocol (matches the Documentate plugin):
+    1. This page signals the opener:  { type: 'converterReady', preCOI: true }
+    2. Opener replies with the file:  { type: 'convertDocument', buffer, name, format, fullscreen, download }
+    3. This page confirms:            { type: 'documentReceived', success: true }
+    4. This page converts and shows/downloads the PDF in its own tab.
+
+  The document must be captured BEFORE coi-serviceworker.js reloads the page to
+  enable cross-origin isolation, because COOP: same-origin severs window.opener
+  for a cross-origin opener. It is stored in sessionStorage and processed after
+  the reload (once SharedArrayBuffer is available).
+-->
+<script>
+	// ---- EARLY OPENER CAPTURE (must run before coi-serviceworker.js) ----
+	(function () {
+		var params = new URLSearchParams(location.search);
+		if (params.get('receive') !== 'opener') return;
+		// Post-reload: the job is already stored, nothing to capture.
+		if (sessionStorage.getItem('documentatePendingConversion')) return;
+		// Post-COI reload severs the opener; only run in the pre-COI phase.
+		if (!window.opener) return;
+
+		window.addEventListener('message', function (event) {
+			if (!event.data || event.data.type !== 'convertDocument') return;
+			try {
+				var bytes = new Uint8Array(event.data.buffer);
+				var binary = '';
+				var chunk = 0x8000;
+				for (var i = 0; i < bytes.length; i += chunk) {
+					binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+				}
+				sessionStorage.setItem('documentatePendingConversion', JSON.stringify({
+					base64: btoa(binary),
+					name: event.data.name || 'document',
+					format: event.data.format || 'pdf',
+					fullscreen: !!event.data.fullscreen,
+					download: !!event.data.download
+				}));
+				if (window.opener) {
+					window.opener.postMessage({ type: 'documentReceived', success: true }, '*');
+				}
+			} catch (e) {
+				if (window.opener) {
+					window.opener.postMessage({ type: 'error', error: String(e && e.message || e) }, '*');
+				}
+			}
+		});
+
+		// Tell the opener we're ready to receive (still pre-COI, opener alive).
+		window.opener.postMessage({ type: 'converterReady', preCOI: true }, '*');
+	})();
+</script>
+<!-- Enables cross-origin isolation (SharedArrayBuffer) on GitHub Pages. -->
+<script src="coi-serviceworker.js"></script>
+<style>
+	:root { --bg:#ffffff; --fg:#1b1f23; --muted:#5b636b; --accent:#18a303; }
+	@media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#9aa4ae; --accent:#43c463; } }
+	body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+	.card { max-width:420px; padding:32px 36px; text-align:center; }
+	.spinner { width:44px; height:44px; margin:0 auto 18px; border:4px solid rgba(127,127,127,.25); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+	@keyframes spin { to { transform:rotate(360deg); } }
+	h1 { font-size:1.2rem; margin:0 0 8px; }
+	p { margin:0; color:var(--muted); font-size:.95rem; }
+	.err h1 { color:#d63638; } .err .spinner { display:none; }
+	a { color:var(--accent); }
+</style>
+</head>
+<body>
+	<div class="card" id="card">
+		<div class="spinner" id="spinner"></div>
+		<h1 id="title">Starting…</h1>
+		<p id="msg">Preparing the converter.</p>
+	</div>
+
+	<script type="module">
+		const card = document.getElementById('card');
+		const titleEl = document.getElementById('title');
+		const msgEl = document.getElementById('msg');
+		const spinner = document.getElementById('spinner');
+
+		function setStatus(title, msg, isError) {
+			if (title != null) titleEl.textContent = title;
+			if (msg != null) msgEl.textContent = msg;
+			card.classList.toggle('err', !!isError);
+			if (isError) spinner.style.display = 'none';
+		}
+
+		const stored = sessionStorage.getItem('documentatePendingConversion');
+
+		if (!stored) {
+			// Opened directly, or still waiting for the opener to send a document.
+			const receive = new URLSearchParams(location.search).get('receive');
+			if (receive === 'opener') {
+				setStatus('Waiting for document…', 'This tab is enabling a secure context. It will convert automatically once the document arrives.');
+			} else {
+				setStatus('Headless converter', 'This endpoint converts documents sent by an opener window. Try the interactive demo instead.');
+				msgEl.innerHTML = 'This endpoint converts documents sent by an opener window. Try the <a href="./">interactive demo</a> instead.';
+			}
+		} else if (!self.crossOriginIsolated) {
+			// The document is stored; coi-serviceworker is about to reload us with COI enabled.
+			setStatus('Securing…', 'Enabling SharedArrayBuffer, one moment…');
+		} else {
+			// Post-COI: run the conversion.
+			run(JSON.parse(stored)).catch((e) => setStatus('Error', (e && e.message) || String(e), true));
+		}
+
+		async function run(job) {
+			sessionStorage.removeItem('documentatePendingConversion');
+
+			setStatus('Loading LibreOffice…', 'Downloading the WASM runtime (first time only).');
+			const { WorkerBrowserConverter, createWasmPaths } = await import('./dist/browser.js');
+			const BASE = new URL('.', location.href).href;
+			const converter = new WorkerBrowserConverter({
+				...createWasmPaths(BASE + 'wasm/'),
+				browserWorkerJs: BASE + 'dist/browser.worker.global.js',
+				onProgress: (info) => { if (info && info.message) setStatus(null, info.message); },
+			});
+			await converter.initialize();
+
+			// Decode the source document.
+			const binary = atob(job.base64);
+			const bytes = new Uint8Array(binary.length);
+			for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+			setStatus('Converting…', job.name);
+			const result = await converter.convert(bytes, { outputFormat: job.format || 'pdf' }, job.name);
+			const blob = new Blob([result.data], { type: result.mimeType || 'application/pdf' });
+			const url = URL.createObjectURL(blob);
+
+			if (job.download) {
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = (job.name || 'document').replace(/\.[^.]+$/, '') + '.' + (job.format || 'pdf');
+				document.body.appendChild(a);
+				a.click();
+				a.remove();
+				setStatus('Done', 'The converted file has been downloaded. You can close this tab.');
+			} else {
+				// Preview: show the PDF in this tab.
+				location.href = url;
+			}
+		}
+	</script>
+</body>
+</html>
