@@ -162,10 +162,11 @@
 </div>
 
 <script>
-	// Fill in the current origin in the snippet.
-	var origin = location.origin + location.pathname.replace(/\/$/, '');
+	// Fill in the base URL (directory of this page) in the snippet — robust
+	// whether the page is opened at "/" or explicitly at "/index.html".
+	var base = new URL('.', location.href).href.replace(/\/$/, '');
 	var snip = document.getElementById('snippet');
-	snip.innerHTML = snip.innerHTML.replace('__ORIGIN__', origin);
+	snip.innerHTML = snip.innerHTML.replace('__ORIGIN__', base);
 
 	// Show the published version.
 	fetch('./version.json').then(function (r) { return r.json(); }).then(function (d) {
